@@ -5,8 +5,10 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.View
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.paging.LoadState
 import com.codinginflow.imagesearchapp.R
 import com.codinginflow.imagesearchapp.databinding.FragmentGalleryBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -29,15 +31,46 @@ class GalleryFragment : Fragment(R.layout.fragment_gallery) {
 
         binding.apply {
             recyclerView.setHasFixedSize(true)
+            recyclerView.itemAnimator = null
             recyclerView.adapter = adapter.withLoadStateHeaderAndFooter(
                 header = UnsplashPhotoLoadStateAdapter { adapter.retry() },
                 footer = UnsplashPhotoLoadStateAdapter { adapter.retry() }
             )
             // use withLoadStateHeader or withLoadStateFooter if only want one or other
+
+            buttonRetry.setOnClickListener {
+                adapter.retry()
+            }
         }
 
         viewModel.photos.observe(viewLifecycleOwner) {
             adapter.submitData(viewLifecycleOwner.lifecycle, it)
+        }
+
+        adapter.addLoadStateListener { loadState ->
+            binding.apply {
+                // visible if loadState is refreshing list with new data set
+                progressBar.isVisible = loadState.source.refresh is LoadState.Loading
+                // visible if loadState refresh is finished but not an error
+                recyclerView.isVisible = loadState.source.refresh is LoadState.NotLoading
+
+                buttonRetry.isVisible = loadState.source.refresh is LoadState.Error
+                textviewError.isVisible = loadState.source.refresh is LoadState.Error
+
+                // show empty textview
+                // if not loading & no error,
+                // if no more results to load,
+                // if no items in recycler view
+                // no results to begin with
+                if (loadState.source.refresh is LoadState.NotLoading &&
+                        loadState.append.endOfPaginationReached &&
+                        adapter.itemCount < 1) {
+                    recyclerView.isVisible = false
+                    textviewEmpty.isVisible = true
+                } else {
+                    textviewEmpty.isVisible = false
+                }
+            }
         }
 
         // activate and show search menu
